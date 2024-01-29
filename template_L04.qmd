@@ -66,7 +66,7 @@ This lab covers material up to and including [9. Judging model effectiveness](ht
 
 For this exercise, we will be working with a data set from the UCI (University of California, Irvine) Machine Learning repository ([see website here](http://archive.ics.uci.edu/ml/datasets/Abalone)). The full data set consists of 4,177 observations of abalone in Tasmania. (Fun fact: [Tasmania](https://en.wikipedia.org/wiki/Tasmania "Tasmania") supplies about 25% of the yearly world abalone harvest.)
 
-![Inside of an abalone shell](images/AbaloneInside.jpg){#fig-abolone width="252"}
+![Inside of an abalone shell](images/AbaloneInside.jpg){#fig-abalone width="252"}
 
 The age of an abalone is typically determined by cutting the shell open and counting the number of rings with a microscope. The purpose of this data set is to determine whether abalone age (**number of rings + 1.5**) can be accurately predicted using other, easier-to-obtain information about the abalone.
 
