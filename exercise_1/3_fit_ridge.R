@@ -10,24 +10,24 @@ library(here)
 tidymodels_prefer()
 
 # load training data
-kc_train <- read_rds(here("data/kc_train.rds"))
+
 
 # load preporcessing/feature engineering/recipe
 
-# model specifications
-lm_spec <- 
-  linear_reg() |> 
-  set_engine("lm") |> 
-  set_mode("regression") 
 
-# define workflows
-lm_wflow <- 
-  workflow() |> 
-  add_model(lm_spec) |> 
-  add_recipe(kc_recipe)
+# model specifications ----
+# set penalty = 0.03
+# mixture = 1 specifies lasso; mixture = 0 for ridge
+ridge_spec <- 
+  linear_reg(penalty = 0.03, mixture = 0) %>% 
+  set_engine("glmnet") %>% 
+  set_mode("regression")
 
-# fit workflows/models
-fit_lm <- fit(lm_wflow, kc_train)
+# define workflows ----
 
-# write out results (fitted/trained workflows)
-save(fit_lm, file = here("results/fit_lm.rda"))
+
+# fit workflows/models ----
+
+
+# write out results (fitted/trained workflows) ----
+

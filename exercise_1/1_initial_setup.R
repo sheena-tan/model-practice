@@ -1,4 +1,10 @@
-# L03 Model workflows & recipes ----
-# WHAT DOES SCRIPT DO?
+# L04 Judging Models ----
+# Initial data checks & data splitting
 
-## load packages ----
+# load packages ----
+library(tidyverse)
+library(tidymodels)
+library(here)
+
+# handle common conflicts
+tidymodels_prefer()

@@ -15,18 +15,18 @@ tidymodels_prefer()
 # load preporcessing/feature engineering/recipe
 
 
-# model specifications
+# model specifications ----
 # don't worry about hyperparameters (mtry and trees) -- we will cover later
 rf_spec <- 
   rand_forest(mtry = 3, trees = 500) %>%
   set_engine("ranger") %>% 
   set_mode("regression")
 
-# define workflows
+# define workflows ----
 
 
-# fit workflows/models
+# fit workflows/models ----
 
 
-# write out results (fitted/trained workflows)
+# write out results (fitted/trained workflows) ----
 
