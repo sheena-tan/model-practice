@@ -1,5 +1,5 @@
 # L04 Judging Models ----
-# Define and fit ordinary linear regression
+# Define and fit ...
 
 # load packages ----
 library(tidyverse)
