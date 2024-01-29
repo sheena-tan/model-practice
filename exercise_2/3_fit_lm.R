@@ -1,5 +1,5 @@
 # L04 Judging Models ----
-# Define and fit random forest model
+# Define and fit ordinary linear regression
 
 ## load packages ----
 library(tidyverse)
@@ -10,25 +10,24 @@ library(here)
 tidymodels_prefer()
 
 # load training data
-
-
+kc_train <- read_rds(here("data/kc_train.rds"))
 
 # load preporcessing/feature engineering/recipe
 
-
-
 # model specifications
-# don't worry about hyperparameters (mtry and trees) -- we will cover later
-rf_spec <- 
-  rand_forest(mtry = 3, trees = 500) %>%
-  set_engine("ranger") %>% 
-  set_mode("regression")
+lm_spec <- 
+  linear_reg() |> 
+  set_engine("lm") |> 
+  set_mode("regression") 
 
 # define workflows
-
+lm_wflow <- 
+  workflow() |> 
+  add_model(lm_spec) |> 
+  add_recipe(kc_recipe)
 
 # fit workflows/models
-
+lm_fit <- fit(lm_wflow, kc_train)
 
 # write out results (fitted/trained workflows)
-
+save(lm_fit, file = here("results/lm_fit.rda"))
