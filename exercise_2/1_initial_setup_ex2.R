@@ -1,5 +1,5 @@
 # L04 Judging Models ----
-# Analysis of trained models 
+# Initial data checks & data splitting
 
 # load packages ----
 library(tidyverse)

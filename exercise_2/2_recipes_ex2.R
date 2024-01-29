@@ -1,5 +1,5 @@
 # L04 Judging Models ----
-# Analysis of trained models 
+# Setup pre-processing/recipes
 
 # load packages ----
 library(tidyverse)
