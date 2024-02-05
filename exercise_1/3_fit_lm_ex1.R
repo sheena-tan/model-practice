@@ -12,7 +12,7 @@ tidymodels_prefer()
 # load training data
 
 
-# load pre-porcessing/feature engineering/recipe
+# load pre-processing/feature engineering/recipe
 
 
 # model specifications ----
