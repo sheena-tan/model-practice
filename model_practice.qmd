@@ -1,0 +1,585 @@
+---
+title: "Practice Judging Models"
+subtitle: "From L04 Judging Models, Data Science 2 with R (STAT 301-2)"
+author: "Sheena Tan"
+
+format:
+  html:
+    toc: true
+    toc-depth: 4
+    embed-resources: true
+    code-fold: show
+    link-external-newwindow: true
+    
+execute:
+  warning: false
+  
+from: markdown+emoji   
+---
+
+
+::: {.callout-tip icon="false"}
+## Github Repo Link
+
+[https://github.com/sheena-tan/model-practice](https://github.com/sheena-tan/model-practice)
+:::
+
+## Overview
+
+This lab demonstrates:
+
+- Usage of the `recipes` package to preform feature engineering
+- Usage of the `yardstick` package to assess and compare models
+- Familiarity with training binary classification models
+
+## Exercises
+
+### Exercise 1
+
+For this exercise, we will be working with a data set from the UCI (University of California, Irvine) Machine Learning repository ([see website here](http://archive.ics.uci.edu/ml/datasets/Abalone)). The full data set consists of 4,177 observations of abalone in Tasmania.
+
+::: {.callout-note icon="false"}
+## Prediction goal
+
+Our goal is to predict abalone age, which is calculated as the number of rings plus 1.5. 
+
+:::
+
+#### Task 1
+
+Add `age`, the target variable, to the data set. Describe the distribution of `age`.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r, include = FALSE}
+library(tidyverse)
+library(here)
+
+# load data ----
+aba_data <- read_csv(here("data/abalone.csv"))
+
+# Add `age`, the target variable, to the data set. 
+aba_data <- aba_data |> 
+  mutate(age = rings + 1.5)
+```
+
+The distribution of the target variable `age` is generally normal with a slight right-skew. The majority of abalone are between 9.5 and 12.5 years old. The mean age of an abalone is 11.43 years, though the oldest abalone has grown to over 30 years old.
+
+```{r, echo = FALSE}
+# Describe the distribution of `age`.
+ggplot(aba_data, aes(age)) +
+  geom_bar()
+
+summary(aba_data$age)
+```
+
+:::
+
+#### Task 2
+
+Split the abalone data into a training set and a testing set. 
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r, eval = FALSE}
+# Set a seed so work is reproducible.
+set.seed(1104)
+
+# Split the abalone data into a training set and a testing set. Use stratified sampling.
+aba_split <- aba_data |> initial_split(prop = 0.8, strata = age)
+aba_train <- training(aba_split)
+aba_test <- testing(aba_split)
+```
+
+:::
+
+#### Task 3
+
+Create a recipe appropriate for fitting linear models. 
+
+::: {.callout-tip icon="false"}
+## Solution
+
+We exclude rings from the predictor variables because `age` was a feature derived from `rings`, meaning that `rings` will perfectly predict `age`. Including both age and rings in the model would essentially create perfect multicollinearity, as age can be directly derived from rings, violating the assumptions of linear regression and making it impossible to estimate the coefficients accurately.
+
+```{r, eval = FALSE}
+# Create a recipe appropriate for fitting linear models.
+aba_recipe_lm <- recipe(age ~ ., data = aba_train) |> #predict age with all predictor variables
+  step_rm(rings) |> #exclude rings
+  step_dummy(type)  |>   #dummy code categorical predictors
+  step_interact(~ starts_with("type_"):shucked_weight)  |> #create interactions
+  step_interact(~ longest_shell:diameter)  |>
+  step_interact(~ shucked_weight:shell_weight) |>
+  step_normalize(all_numeric_predictors()) #center and scale all predictors
+```
+
+:::
+
+#### Task 4
+
+Create a workflow called `lm_wflow` for training a linear regression model using the `"lm"` engine and the pre-processing recipe defined in the previous task.  
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r, eval = FALSE}
+# define workflows ----
+lm_wflow <- workflow()  |> #set up empty workflow
+  add_model(lm_spec)  |> #add the model specification
+  add_recipe(aba_recipe_lm) #add the recipe
+
+# fit workflows/models ----
+lm_fit <- lm_wflow |>
+  fit(data = aba_train)
+
+# write out results (fitted/trained workflows) ----
+save(lm_fit, file = here("exercise_1/results/lm_fit.rds"))
+```
+
+:::
+
+#### Task 5
+
+Assess the model's performance on several metrics, including *R^2^*, RMSE (root mean squared error), and MAE (mean absolute error).
+
+::: {.callout-tip icon="false"}
+## Solution
+
+The results return values of **RMSE = 2.29**, **RSQ = 0.486**, and **MAE = 1.61**. In other words:
+
+- **R-squared (RSQ)**: The proportion of variance in abalone `age` that is predictable from the predictor variables is **0.486** with our ordinary linear regression model. Higher R-squared values indicate better fit of the model to the data.
+- **Root Mean Squared Error (RMSE)**: The square root of the average of the squared differences between the ordinary linear regression model's predicted values and the true values is **2.29**. A smaller average magnitude of error would indicate a better fit, so lower RMSE values indicate better model performance.
+- **Mean Absolute Error (MAE)**: The average of the absolute differences between the model's predicted values and the true values is **1.61**. Like RMSE, lower MAE values indicate better model performance.
+
+```{r, eval = FALSE}
+aba_metric <- metric_set(rmse, rsq, mae) #create a metric set
+
+aba_res <- function(fitted_model, .data, target_var){
+  fitted_model |> 
+    predict(.data) |> 
+    bind_cols(.data |> select({{ target_var }}))
+} #function to create a tibble of predicted values
+
+lm_fit |>
+  aba_res(aba_test, "age") |> 
+  aba_metric(truth = age, estimate = .pred) |> #apply the metric set to the tibble
+  select(-.estimator) |> 
+  mutate(model_type = "lm") |> 
+  bind_rows(
+    lasso_fit |> #add lasso metrics
+      aba_res(aba_test, "age") |> 
+      aba_metric(truth = age, estimate = .pred) |> 
+      select(-.estimator) |> 
+      mutate(model_type = "lasso")
+  ) 
+```
+
+:::
+
+
+#### Task 6
+
+Let's try a few more models:
+
+::: {.callout-caution collapse="true" icon="false"}
+## Lasso Regression 
+
+Define, train, and assess a lasso model with penalty 0.03 starting with the same recipe used by the ordinary linear regression model.
+
+```{r, eval = FALSE}
+# model specifications ----
+lasso_spec <-
+  linear_reg(penalty = 0.03, mixture = 1) %>%
+  set_engine("glmnet") %>%
+  set_mode("regression")
+
+# define workflows ----
+lasso_wflow <-
+  workflow() |>
+  add_model(lasso_spec) |>
+  add_recipe(aba_recipe_lm)
+
+# fit workflows/models ----
+lasso_fit <-
+  lasso_wflow |>
+  fit(aba_train)
+```
+
+:::
+
+::: {.callout-caution collapse="true" icon="false"}
+## Ridge Regression
+
+Define, train, and assess a ridge model with penalty 0.03 starting with the same recipe used by the ordinary linear regression model.
+
+```{r, eval = FALSE}
+# model specifications ----
+ridge_spec <-
+  linear_reg(penalty = 0.03, mixture = 0) %>%
+  set_engine("glmnet") %>%
+  set_mode("regression")
+
+# define workflows ----
+ridge_wflow <-
+  workflow() |>
+  add_model(ridge_spec) |>
+  add_recipe(aba_recipe_lm)
+
+# fit workflows/models ----
+ridge_fit <-
+  ridge_wflow |>
+  fit(aba_train)
+```
+
+:::
+
+::: {.callout-caution collapse="true" icon="false"}
+## Random Forest
+
+Define, train, and assess a random forest model with the number of sampled variables to split on at each node set to 4 (`mtry = 4`) and the number or trees to grow set to 1,000 (`trees = 1000`).  
+
+Create a different recipe for the random forest model. 
+
+```{r, eval = FALSE}
+# Create a recipe for the random forest model.
+aba_recipe_rf <- recipe(age ~ ., data = aba_train) |> #predict age with all predictor variables
+  step_rm(rings) |> #exclude rings
+  step_dummy(all_nominal_predictors(), one_hot = TRUE)  |>   #one-hot encode categorical predictors
+  step_normalize(all_numeric_predictors()) #center and scale all predictors
+
+# model specifications ----
+rf_spec <-
+  rand_forest(mtry = 3, trees = 1000) %>%
+  set_engine("ranger") %>%
+  set_mode("regression")
+
+# define workflows ----
+rf_wflow <-
+  workflow() |>
+  add_model(rf_spec) |>
+  add_recipe(aba_recipe_rf)
+
+# fit workflows/models ----
+set.seed(1104)
+rf_fit <-
+  rf_wflow |>
+  fit(aba_train)
+
+```
+
+:::
+
+#### Task 7
+
+Provide the performance assessment metrics for each of the 4 models in one table. After considering this information, which model is best? Why?
+
+::: {.callout-tip icon="false"}
+## Solution
+
+The **random forest model** is the best, because it has the highest RSQ value, the lowest RMSE value, AND the lowest MAE value out of all four models.
+
+{{< include exercise_1/results/performance_metrics.html >}}
+
+:::
+
+### Exercise 2
+
+For this exercise, we will be working with part of a [Kaggle data set](https://www.kaggle.com/c/titanic/overview) that was the subject of a machine learning competition and is often used for practicing ML models.
+
+![RMS Titanic departing Southampton on April 10, 1912.](images/RMS_Titanic.jpg){fig-align="center" width="363" #fig-titanic}
+
+::: {.callout-note icon="false"}
+## Prediction goal
+
+The goal is classification; specifically, to predict which passengers would survive the [Titanic shipwreck](https://en.wikipedia.org/wiki/Titanic).
+:::
+
+#### Task 1
+
+Load the data from `data/titanic.csv`. Notice that `survived` and `pclass` should be changed to factors and reordered. 
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r, eval = FALSE}
+# load data ----
+titanic_data <- read_csv(here("data/titanic.csv"))
+
+# change to factors and reorder ----
+titanic_data <- titanic_data |>
+  mutate(survived = factor(survived, levels = c("Yes", "No"), ordered = TRUE)) |> 
+  mutate(pclass = factor(pclass))
+```
+
+:::
+
+#### Task 2
+
+Using the full data set, explore/describe the distribution of the outcome variable `survived`.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+The distribution of the target variable `survived` is unevenly split between the two levels `Yes` and `No`, with 342 passengers surviving and 549 passengers not surviving out of a total of 891 passengers. The majority of passengers (approximately two-thirds) did not survive. 
+```{r, include = FALSE}
+# load data ----
+titanic_data <- read_csv(here("data/titanic.csv"))
+
+# change to factors and reorder ----
+titanic_data <- titanic_data |>
+  mutate(survived = factor(survived, levels = c("Yes", "No"), ordered = TRUE)) |> 
+  mutate(pclass = factor(pclass))
+```
+
+```{r, echo = FALSE}
+# explore target variable distribution ----
+ggplot(titanic_data, aes(survived)) +
+  geom_bar()
+
+summary(titanic_data$survived)
+```
+
+:::
+
+#### Task 3
+
+Split the data! 
+
+::: {.callout-tip icon="false"}
+## Solution
+
+The training and testing data have the appropriate number of observations for a proportion split of 80/20, respectively. Potential issues with the training data include a large amount of missingness in variables `cabin` (over half of the values are missing) and `age`, which could negatively impact the internal reliability of our model.
+
+Using stratified sampling helps ensure that the training and testing datasets are representative of the population distribution, leading to more accurate and reliable models, especially when dealing with categorical variables with uneven distributions like our target variable `survived`. Stratified sampling ensures that each category of `survived` is represented proportionally in both the training and testing datasets, helping to reduce bias caused by one category being overrepresented or underrepresented.
+
+```{r, eval = FALSE}
+# set seed ----
+set.seed(1104)
+
+# data split with stratified sampling
+titanic_split <- titanic_data |> initial_split(prop = 0.8, strata = age)
+titanic_train <- training(titanic_split)
+titanic_test <- testing(titanic_split)
+
+# check split
+count(titanic_train) / count(titanic_data)
+count(titanic_test) / count(titanic_data)
+
+# skim training data
+skimr::skim(titanic_train)
+```
+
+:::
+
+
+#### Task 4
+
+Looking ahead, we plan to train two random forest models and a logistic regression model for this problem. We begin by setting up recipes for each of these approaches.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r, eval = FALSE}
+# linear models recipe
+titanic_recipe_lm <- 
+  recipe(survived ~ pclass + sex + age + sib_sp + parch + fare, titanic_train) |> 
+  step_impute_linear(age) |> 
+  step_dummy(pclass, sex)  |>   
+  step_interact(~ starts_with("sex_"):fare)  |> 
+  step_interact(~ age:fare)
+
+# random forest recipe
+titanic_recipe_rf <- 
+  recipe(survived ~ pclass + sex + age + sib_sp + parch + fare, titanic_train) |> 
+  step_impute_linear(age) |> 
+  step_dummy(pclass, sex, one_hot = TRUE) 
+```
+:::
+
+
+#### Task 5
+
+Create a workflow for fitting a **logistic regression** model for classification using the `"glm"` engine. 
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r, eval = FALSE}
+# model specifications ----
+glm_spec <-
+  logistic_reg() |>
+  set_engine("glm") |> 
+  set_mode("classification")
+
+# define workflows ----
+glm_wflow <- workflow()  |> #set up empty workflow
+  add_model(glm_spec)  |> #add the model specification
+  add_recipe(titanic_recipe_lm) #add the recipe
+
+# fit workflows/models ----
+glm_fit <- glm_wflow |>
+  fit(data = titanic_train)
+```
+
+:::
+
+#### Task 6
+
+**Repeat Task 5**, but specify a random forest model for classification using the `"ranger"` engine and the appropriate recipe. *Don't specify values for tuning parameters manually;* allow the function(s) to use the default values.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r, eval = FALSE}
+# model specifications ----
+rf_spec <-
+  rand_forest() |>
+  set_engine("ranger") |> 
+  set_mode("classification")
+
+# define workflows ----
+rf_wflow <- workflow()  |> 
+  add_model(rf_spec)  |> 
+  add_recipe(titanic_recipe_rf) 
+
+# fit workflows/models ----
+rf_fit <- rf_wflow |>
+  fit(data = titanic_train)
+
+```
+
+:::
+
+#### Task 7
+
+**Repeat Task 6**, but this time choose values that are reasonable for each of the three tuning parameters (`mtry`, `trees`, and `min_n`).
+
+::: {.callout-tip icon="false"}
+## Solution
+
+```{r, eval = FALSE}
+# model specifications ----
+rf_alt_spec <-
+  rand_forest(mtry = 3, trees = 1000, min_n = 2) |>
+  set_engine("ranger") |> 
+  set_mode("classification")
+
+# define workflows ----
+rf_alt_wflow <- workflow()  |> #set up empty workflow
+  add_model(rf_alt_spec)  |> #add the model specification
+  add_recipe(titanic_recipe_rf) #add the recipe
+
+# fit workflows/models ----
+rf_alt_fit <- rf_alt_wflow |>
+  fit(data = titanic_train)
+```
+
+:::
+
+#### Task 8
+
+Use `predict()` and `bind_cols()` to generate predictions using each of the 3 models created and the testing data. Then use the **accuracy** metric to assess the performance of each of the three models. Which model makes the best predictions? Why?
+
+::: {.callout-tip icon="false"}
+## Solution
+The custom random forest model makes the best predictions here, because it has the highest accuracy value. Accuracy is the proportion of the data that are predicted correctly, so the higher the accuracy, the better the model performed.
+
+{{< include exercise_2/results/accuracy_table.html >}}
+:::
+
+#### Task 9
+
+For the model identified in Task 8, create a confusion matrix using the testing data. Interpret the numbers in each category.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+A confusion matrix is a table that is used to evaluate the performance of a classification model. It compares the actual values of the target variable (Truth) with the predicted values made by the model (Prediction). The columns represent the true Yes/No values and the rows represent the predicted Yes/No values. Each cell in the matrix indicates the number of observations that fall into that category, such that the diagonal represents the correctly classified instances (true positive, true negative) and the cross-diagonal represents misclassified instances (false positive, false negative). Interpreting from the top left cell, going clockwise:
+
+- True positives: observations that are correctly predicted as positive by the model; e.g., the actual class is "positive" and the model predicts it as "positive"; our model correctly predicted **45 true positives** which is two-thirds as many actual Yes values there were 
+- False positives: observations that are incorrectly predicted as positive by the model; e.g., the actual class is "negative" but the model predicts it as "positive"; our model incorrectly predicted **8 false positives**, which is less than one-tenth of the actual No values
+- True negatives: observations that are correctly predicted as negative by the model; e.g., the actual class is "negative" and the model predicts it as "negative"; our model correctly predicted **106 true negatives**, which is over 90% of actual No values
+- False negatives: observations that are incorrectly predicted as negative by the model; e.g., the actual class is "positive" but the model predicts it as "negative"; our model incorrectly predicted **22 false negatives**, which is about one-third of the actual Yes values
+
+**In conclusion, it seems that our model does a great job of predicting when survivors do not survive, but not nearly as good of a job when it comes to predicting correctly that they survive.**
+
+```{r, eval = FALSE}
+# create confusion matrix ----
+conf_matrix <- predict(rf_alt_fit, titanic_test) |> 
+  bind_cols(titanic_test) |> 
+  conf_mat(truth = survived, estimate = .pred_class) 
+
+conf_matrix
+```
+
+:::
+
+#### Task 10
+
+For the model identified in Task 8, use `predict()` and `bind_cols()` to create a tibble of predicted class probabilities and actual true outcomes. 
+
+::: {.callout-tip icon="false"}
+## Solution
+
+Class probabilities represent the likelihood or probability that an observation belongs to each class in a classification problem. For binary classification, there are two columns in the output: one for the probability of the observation belonging to the negative class (e.g., .pred_No) and another for the probability of belonging to the positive class (e.g., .pred_Yes). These probabilities sum up to 1 for each observation. Binding these predicted class probabilities with the true survival outcome helps to compare the model's predictions with the true outcomes to evaluate the performance and calibration of the model. 
+
+If the model falsely predicts Yes when the passenger does not actually survive, as with passenger ID 19 for example, we can see **by what margin** the model was incorrect. In this case, the margin was 0.560501 to 0.439499, which is not terribly far off.
+
+::: {.callout-caution collapse="true" icon="false"}
+## Expand to see table
+
+{{< include exercise_2/results/prob_table.html >}}
+
+:::
+
+:::
+
+#### Task 11
+
+For the model identified in Task 8, use `roc_curve()` and `autoplot()` to create a receiver operating characteristic (ROC) curve.
+
+Use `roc_auc()` to calculate the area under the ROC curve.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+The area under the ROC curve is **0.902**.
+
+![ROC curve](images/roc_plot.png)
+
+```{r, eval = FALSE}
+# create ROC curve  ----
+predicted_probs <- rf_alt_fit |> 
+  predict(titanic_test, type = "prob") |> 
+  bind_cols(titanic_test |> select(survived))
+
+roc_curve <- roc_curve(predicted_probs, truth = survived, .pred_Yes)
+
+roc_plot <- autoplot(roc_curve, main = "ROC Curve") +
+  labs(x = "False Positive Rate", y = "True Positive Rate") +
+  theme_minimal()
+
+# save ROC plot
+ggsave("images/roc_plot.png", plot = roc_plot, width = 6, height = 4)
+
+# calculate AUC ----
+roc_auc(predicted_probs, .pred_Yes, truth = survived)
+```
+
+
+:::
+
+#### Task 12
+
+The area under the ROC curve is a measure of how well the model predictions are able to separate the data being tested into classes/groups. [(See here for a more detailed explanation)](http://gim.unmc.edu/dxtests/roc3.htm).
+
+Interpret the AUC.
+
+::: {.callout-tip icon="false"}
+## Solution
+
+The AUC represents the probability that the model will rank a randomly chosen positive instance higher than a randomly chosen negative one. An AUC of 0.5 should indicate performance no better than random chance, while an AUC of 1 indicates perfect predictive performance. Since our model AUC is above 0.9, the model is a **very good fit** for classifying the data.
+
+:::
